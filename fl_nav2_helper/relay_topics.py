@@ -1,0 +1,132 @@
+import rclpy
+from rclpy.node import Node
+from nav_msgs.msg import Odometry
+from std_msgs.msg import Bool
+from sensor_msgs.msg import PointCloud2, LaserScan
+from geometry_msgs.msg import TransformStamped
+from tf2_ros import TransformBroadcaster
+from tf_transformations import quaternion_from_euler, euler_from_quaternion
+import numpy as np
+
+class RelayTopics(Node):
+
+	def __init__(self):
+
+		super().__init__('relay_topics_node')
+
+		self.sensor_offset = 0.2
+
+		self.got_odom = False
+		self.br = TransformBroadcaster(self)
+
+		## Odometry topic from fast_lio
+		self.odom_sub = self.create_subscription(Odometry, "/Odometry", self.odom_callback, 10)
+
+		## relay topic from Odometry
+		self.lidar_odom_pub = self.create_publisher(Odometry, "/lidar_odom", 10)
+
+		## laserscan topic from pointcloud_to_laserscan
+		scan_qos = rclpy.qos.QoSProfile(reliability=rclpy.qos.ReliabilityPolicy.BEST_EFFORT, \
+											history=rclpy.qos.HistoryPolicy.KEEP_LAST, \
+											depth=10)
+		self.laser_pub = self.create_subscription(LaserScan, "/lidar_scan", self.lidar_scan_callback, qos_profile=scan_qos)
+
+		## relay topic from /lidar_scan
+		self.laser_repeat_pub = self.create_publisher(LaserScan, "/scan", qos_profile=scan_qos)
+
+		pcl_qos = rclpy.qos.QoSProfile(reliability=rclpy.qos.ReliabilityPolicy.RELIABLE, \
+											history=rclpy.qos.HistoryPolicy.KEEP_LAST, \
+											depth=1)
+		self.cloud_sub = self.create_subscription(PointCloud2, "/cloud_registered_body", self.cloud_callback, qos_profile=pcl_qos)
+		self.cloud_pub = self.create_publisher(PointCloud2, "/lidar_cloud", qos_profile=pcl_qos)
+
+		print("start relay_topics_node")
+		# self.timer = self.create_timer(0.05, self.timer_callback)
+
+
+	def lidar_scan_callback(self, msg):
+		laser_msg = LaserScan()
+		laser_msg = msg
+		laser_msg.header.stamp = self.get_clock().now().to_msg() #msg.header.stamp
+		laser_msg.header.frame_id = "laser_frame"
+		self.laser_repeat_pub.publish(laser_msg)
+
+		# print(len(msg.ranges))
+
+
+	def odom_callback(self, msg):
+
+		self.got_odom = True
+
+		odom_msg = Odometry()
+		odom_msg.header.stamp = self.get_clock().now().to_msg()
+		odom_msg.header.frame_id = "odom"
+		odom_msg.child_frame_id = "base_link"	#"base_footprint"	#"base_link"
+		odom_msg.pose = msg.pose
+		odom_msg.twist = msg.twist
+
+		qx = msg.pose.pose.orientation.x
+		qy = msg.pose.pose.orientation.y
+		qz = msg.pose.pose.orientation.z
+		qw = msg.pose.pose.orientation.w
+
+		q_list = [qx, qy, qz, qw]
+		(roll, pitch, yaw) = euler_from_quaternion(q_list)
+
+		x_l = msg.pose.pose.position.x
+		y_l = msg.pose.pose.position.y
+
+		x_b = x_l - self.sensor_offset*np.cos(yaw)
+		y_b = y_l - self.sensor_offset*np.sin(yaw)
+
+		odom_msg.pose.pose.position.x = x_b
+		odom_msg.pose.pose.position.y = y_b
+
+		#self.get_logger().info("xl: {:.3f} yl: {:.3f} xb: {:.3f} yb: {:.3f} yaw: {:.2f}".format(x_l, y_l, x_b, y_b, yaw))
+
+		## construct tf
+		t = TransformStamped()
+		t.header.frame_id = "odom" 
+		t.header.stamp = self.get_clock().now().to_msg()
+		t.child_frame_id = "base_link"	#"base_footprint"	#"base_link"
+		t.transform.translation.x = x_b #msg.pose.pose.position.x 
+		t.transform.translation.y = y_b #msg.pose.pose.position.y
+		t.transform.translation.z = msg.pose.pose.position.z
+
+		t.transform.rotation.x = msg.pose.pose.orientation.x
+		t.transform.rotation.y = msg.pose.pose.orientation.y
+		t.transform.rotation.z = msg.pose.pose.orientation.z
+		t.transform.rotation.w = msg.pose.pose.orientation.w
+		self.br.sendTransform(t)
+
+		self.lidar_odom_pub.publish(odom_msg)
+
+	def cloud_callback(self, msg):
+		cloud_msg = PointCloud2()
+		cloud_msg = msg
+		cloud_msg.header.stamp = self.get_clock().now().to_msg()
+		cloud_msg.header.frame_id = "cloud_frame"
+
+
+		self.cloud_pub.publish(cloud_msg)
+
+
+	# def timer_callback(self):
+
+	# 	if not self.got_odom:
+	# 		lidar_cmd_msg = Bool()
+	# 		lidar_cmd_msg.data = True
+
+	# 		self.lidar_cmd_pub.publish(lidar_cmd_msg)
+			
+
+def main(args= None):
+	rclpy.init(args=None)
+	node = RelayTopics()
+	rclpy.spin(node)
+	node.destroy_node()
+	rclpy.shutdown()
+
+if __name__ == "__main__":
+
+	main()

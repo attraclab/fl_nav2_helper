@@ -1,0 +1,12 @@
+[Unit]
+Description=All of ROS running on the background
+After=multi-user.target
+
+[Service]
+Type=idle
+User=ubuntu
+ExecStart=/usr/bin/bash /home/ubuntu/dev_ws/src/fl_nav2_helper/autostart_scripts/start_relay_topics.sh
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
