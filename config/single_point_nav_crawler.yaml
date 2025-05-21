@@ -1,0 +1,25 @@
+single_point_nav_in_odom_node:
+  ros__parameters:
+
+    vx_trace: 0.4
+    wz_trace: 0.4
+    wz_turning: 0.6
+
+    slowdown_dist: 1.0
+    vx_slowdown: 0.2
+    accel_period: 3.0
+    vx_min: 0.13
+    wz_min: 0.3
+    min_turning_angle: 6.0
+    goal_dist_thresh: 0.5
+    hdg_diff_thresh: 1.0
+
+    turn_p: 0.01
+    turn_i: 0.0001
+    turn_d: 0.001
+
+    steer_p: 0.001
+    steer_i: 0.0
+    steer_d: 0.0
+
+

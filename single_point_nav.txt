@@ -1,0 +1,5 @@
+## PC ##
+ros2 launch fl_nav2_helper point_nav.launch.py params_file:=/home/rasheed/fast_lio/fl_nav2_ws/src/fl_nav2_helper/config/single_point_nav_crawler.yaml
+
+## RPI ##
+ros2 launch fl_nav2_helper point_nav.launch.py params_file:=/home/raspberry/dev_ws/src/fl_nav2_helper/config/single_point_nav_crawler.yaml
