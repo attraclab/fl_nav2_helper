@@ -1,0 +1,14 @@
+[Unit]
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=idle
+#RemainAfterExit=no
+#StandardOutput=syslog
+User=root
+ExecStart=/bin/bash /home/raspberry/dev_ws/src/fl_nav2_helper/autostart_scripts/start_setup_default_gateway.sh
+
+[Install]
+WantedBy=multi-user.target
+

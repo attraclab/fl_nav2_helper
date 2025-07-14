@@ -1,0 +1,3 @@
+originally livox-ros-driver2 is publishing data as Reliable QoS, so there is many times where data stop sending.
+
+Change to best_effort qos, then copy this lddc.cpp and lddc.h to src/ of livox-ros-driver2 directory.

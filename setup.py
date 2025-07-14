@@ -27,6 +27,8 @@ setup(
         'relay_topics = fl_nav2_helper.relay_topics:main',
         'nav2_path_following = fl_nav2_helper.nav2_path_following:main',
         'single_point_nav_in_odom = fl_nav2_helper.single_point_nav_in_odom:main',
+        'mavlink_sender = fl_nav2_helper.mavlink_sender:main',
+        'navsat_handler = fl_nav2_helper.navsat_handler:main',
         ],
     },
 )

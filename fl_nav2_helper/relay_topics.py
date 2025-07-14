@@ -2,13 +2,16 @@ import rclpy
 from rclpy.node import Node
 from nav_msgs.msg import Odometry
 from std_msgs.msg import Bool
-from sensor_msgs.msg import PointCloud2, LaserScan
+from sensor_msgs.msg import PointCloud2, LaserScan, Imu
 from geometry_msgs.msg import TransformStamped
 from tf2_ros import TransformBroadcaster
 from tf_transformations import quaternion_from_euler, euler_from_quaternion
 import numpy as np
 from rclpy.parameter import Parameter
 from rcl_interfaces.msg import SetParametersResult
+import time
+import os, signal
+
 
 class RelayTopics(Node):
 
@@ -35,15 +38,34 @@ class RelayTopics(Node):
 
 		#self.sensor_offset = 0.2
 
+		self.kill_node_list =  [
+			'ros2 launch fast_lio mapping.launch.py config_file:=mid360.yaml',
+			'fastlio_mapping --ros-args --params-file',
+		]
+
+
 		### Other parameters ###
 		self.got_odom = False
 		self.br = TransformBroadcaster(self)
 
-		## Odometry topic from fast_lio
-		self.odom_sub = self.create_subscription(Odometry, "/Odometry", self.odom_callback, 10)
+		self.ax = 0.0
+		self.ay = 0.0
+		self.az = 0.0
+		self.gx = 0.0
+		self.gy = 0.0
+		self.gz = 0.0
+		self.got_imu = False
 
-		## relay topic from Odometry
-		self.lidar_odom_pub = self.create_publisher(Odometry, "/lidar_odom", 10)
+		## sensor_qos
+		sensor_qos = rclpy.qos.QoSProfile(reliability=rclpy.qos.ReliabilityPolicy.BEST_EFFORT, \
+											history=rclpy.qos.HistoryPolicy.KEEP_LAST, \
+											depth=1)
+
+		## Odometry topic from fast_lio
+		self.odom_sub = self.create_subscription(Odometry, "/Odometry", self.odom_callback, sensor_qos)
+
+
+		self.lidar_odom_pub = self.create_publisher(Odometry, "/lidar_odom", qos_profile=sensor_qos)
 
 		# self.ori_odom_pub = self.create_publisher(Odometry, "/Odometry_ori", 10)
 
@@ -62,7 +84,12 @@ class RelayTopics(Node):
 		# self.cloud_sub = self.create_subscription(PointCloud2, "/cloud_registered_body", self.cloud_callback, qos_profile=pcl_qos)
 		# self.cloud_pub = self.create_publisher(PointCloud2, "/lidar_cloud", qos_profile=pcl_qos)
 
-		print("start relay_topics_node")
+		self.imu_sub = self.create_subscription(Imu, "/livox/imu", self.imu_callback, qos_profile=sensor_qos)
+		self.imu_pub = self.create_publisher(Imu, "/lidar_imu", qos_profile=sensor_qos)
+
+		self.since_start_stamp = time.time()
+
+		self.get_logger().info("start relay_topics_node")
 		# self.timer = self.create_timer(0.05, self.timer_callback)
 
 	#####################
@@ -121,6 +148,7 @@ class RelayTopics(Node):
 
 		x_l = msg.pose.pose.position.x
 		y_l = msg.pose.pose.position.y
+		z_l = msg.pose.pose.position.z
 
 		if self.do_offset:
 
@@ -137,6 +165,22 @@ class RelayTopics(Node):
 
 		odom_msg.pose.pose.position.x = x_b
 		odom_msg.pose.pose.position.y = y_b
+
+		if (self.got_imu):
+			imu_msg = Imu()
+			imu_msg.header.frame_id = "imu_link"
+			imu_msg.header.stamp = self.get_clock().now().to_msg()
+			imu_msg.orientation.x = qx
+			imu_msg.orientation.y = qy
+			imu_msg.orientation.z = qz
+			imu_msg.orientation.w = qw
+			imu_msg.angular_velocity.x = self.gx
+			imu_msg.angular_velocity.y = self.gy
+			imu_msg.angular_velocity.z = self.gz
+			imu_msg.linear_acceleration.x = self.ax
+			imu_msg.linear_acceleration.y = self.ay
+			imu_msg.linear_acceleration.z = self.az
+			self.imu_pub.publish(imu_msg)
 
 
 
@@ -160,6 +204,30 @@ class RelayTopics(Node):
 
 		self.lidar_odom_pub.publish(odom_msg)
 
+		### detect position jump error which will happen sometime when start fast-lio
+		if ((time.time() - self.since_start_stamp) < 300):
+			if ((abs(x_l) > 100.0) or (abs(y_l) > 100.0) or (abs(z_l) > 100.0)):
+				self.get_logger().info('Position jump error, restart fast-lio')
+				for node_to_kill in self.kill_node_list:
+					for line in os.popen('ps ax | grep "{}" | grep -v grep'.format(node_to_kill)):
+						fields = line.split()
+						pid = fields[0]
+						os.kill(int(pid), signal.SIGKILL)
+						self.get_logger().info("Kill process {:d}".format(int(pid)))
+
+	## /livox/imu has no orientation data,
+	## we cannot orientation from this
+	## but gyro and accel are good
+	def imu_callback(self, msg):
+
+		self.got_imu = True
+		self.gx = msg.angular_velocity.x
+		self.gy = msg.angular_velocity.y
+		self.gz = msg.angular_velocity.z
+		self.ax = msg.linear_acceleration.x
+		self.ay = msg.linear_acceleration.y
+		self.az = msg.linear_acceleration.z
+
 	# def cloud_callback(self, msg):
 	# 	cloud_msg = PointCloud2()
 	# 	cloud_msg = msg
@@ -177,6 +245,8 @@ class RelayTopics(Node):
 	# 		lidar_cmd_msg.data = True
 
 	# 		self.lidar_cmd_pub.publish(lidar_cmd_msg)
+
+	
 			
 
 def main(args= None):

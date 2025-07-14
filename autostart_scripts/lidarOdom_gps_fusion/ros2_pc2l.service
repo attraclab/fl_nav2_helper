@@ -1,0 +1,13 @@
+[Unit]
+Description=All of ROS running on the background
+After=multi-user.target
+Wants=network-online.target
+
+[Service]
+Type=idle
+User=raspberry
+ExecStart=/bin/bash /home/raspberry/dev_ws/src/fl_nav2_helper/autostart_scripts/start_pc2l.sh
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

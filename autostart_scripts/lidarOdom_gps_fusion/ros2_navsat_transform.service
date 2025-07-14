@@ -1,0 +1,16 @@
+[Unit]
+Description=All of ROS running on the background
+After=multi-user.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=raspberry
+
+Environment=RCUTILS_LOGGING_BUFFERED_STREAM=1
+
+ExecStart=/bin/bash /home/raspberry/dev_ws/src/fl_nav2_helper/autostart_scripts/start_navsat_transform.sh
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
