@@ -1,0 +1,7 @@
+Important!
+
+we need to install eigen 3.4.0 from gitlab as following.
+
+https://gitlab.com/libeigen/eigen/-/releases/3.4.0
+
+When using another version from github or apt install, there is some issue like much drifting for long time usage...
