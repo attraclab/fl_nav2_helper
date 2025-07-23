@@ -1,7 +1,7 @@
 import rclpy
 from rclpy.node import Node
 from nav_msgs.msg import Odometry
-from std_msgs.msg import Int8
+from std_msgs.msg import Int8, Float64MultiArray
 from sensor_msgs.msg import NavSatFix, TimeReference, LaserScan
 from pymavlink import mavutil
 import time
@@ -199,6 +199,8 @@ class MAVLinkSender(Node):
 
 		self.check_buffer = 10
 		self.fix_type = 0
+		self.gps_lat = 0.0
+		self.gps_lon = 0.0
 		
 		self.lat_list = np.array([], dtype=np.int32) 
 		self.lon_list = np.array([], dtype=np.int32)
@@ -214,6 +216,10 @@ class MAVLinkSender(Node):
 		self.got_scan = False
 		self.last_send_obstacle_stamp = time.time()
 
+		### Publish rate
+		self.last_pub_fix = time.time()
+		self.last_pub_gps = time.time()
+
 		qos_policy = rclpy.qos.QoSProfile(reliability=rclpy.qos.ReliabilityPolicy.BEST_EFFORT, 
 											durability=rclpy.qos.DurabilityPolicy.VOLATILE, 
 											depth=1)
@@ -222,8 +228,11 @@ class MAVLinkSender(Node):
 		# self.gps_sub = self.create_subscription(NavSatFix, "/fix", self.gps_callback, 10)
 
 		self.odom_sub = self.create_subscription(Odometry, '/Odometry', self.odom_callback, qos_profile=qos_policy)
-		self.ekf_src_sub = self.create_subscription(Int8, "/ekf_src", self.ekf_src_callback, 10)
 		self.scan_sub = self.create_subscription(LaserScan, "/lidar_scan", self.scan_callback, qos_profile=qos_policy)
+
+		self.ekf_src_sub = self.create_subscription(Int8, "/ap/ekf_src", self.ekf_src_callback, 10)
+		self.gps_fix_pub =  self.create_publisher(Int8, "/ap/fix", 10)
+		self.robot_pos_pub = self.create_publisher(Float64MultiArray, "/ap/gps", 10)
 
 		self.get_logger().info("start mavlink_sender")
 
@@ -441,7 +450,8 @@ class MAVLinkSender(Node):
 			self.ap_lon = data_dict['lon']
 			self.ap_alt = data_dict['alt']
 			self.fix_type = data_dict['fix_type']
-			
+			self.gps_lat = self.ap_lat / 1e7
+			self.gps_lon = self.ap_lon / 1e7
 
 			if not self.start_send_odom and self.wait_gps:
 				msg = "lat: {} lon: {} fix_type {}".format(self.ap_lat, self.ap_lon, self.fix_type)
@@ -501,6 +511,20 @@ class MAVLinkSender(Node):
 
 				self.last_send_obstacle_stamp = time.time()
 				send_obstacle_distance(distances)
+
+		### publish gps_fix status
+		if ((time.time() - self.last_pub_fix) >= 1/20.0):
+			gps_fix_msg = Int8()
+			gps_fix_msg.data = self.fix_type
+			self.gps_fix_pub.publish(gps_fix_msg)
+			self.last_pub_fix = time.time()
+
+		### publish GPS lat/lon
+		if ((time.time() - self.last_pub_gps) >= 1/20.0):
+			gps_pos_msg = Float64MultiArray()
+			gps_pos_msg.data = [self.gps_lat, self.gps_lon]
+			self.robot_pos_pub.publish(gps_pos_msg)
+			self.last_pub_gps = time.time()
 
 		
 

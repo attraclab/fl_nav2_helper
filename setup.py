@@ -29,6 +29,7 @@ setup(
         'single_point_nav_in_odom = fl_nav2_helper.single_point_nav_in_odom:main',
         'mavlink_sender = fl_nav2_helper.mavlink_sender:main',
         'navsat_handler = fl_nav2_helper.navsat_handler:main',
+        'fence_handler = fl_nav2_helper.fence_handler:main',
         ],
     },
 )
