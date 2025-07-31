@@ -7,7 +7,7 @@ sleep 55
 
 export DISPLAY=:0.0
 export LOGFILE=/home/$USER/$rosws/src/$rospackage/autostart_scripts/fast_lio.log
-export ROS_DOMAIN_ID=0
+
 
 source ~/ros2_humble/install/local_setup.bash
 source ~/livox_ws/install/local_setup.bash
@@ -16,6 +16,8 @@ source ~/ros2_vision_ws/install/local_setup.bash
 source ~/dev_ws/install/local_setup.bash
 source ~/nav2_ws/install/local_setup.bash
 source ~/micro_ros_ws/install/local_setup.bash
+
+export ROS_DOMAIN_ID=0
 
 export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 export OPENBLAS_CORETYPE=ARMV8

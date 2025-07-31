@@ -228,7 +228,7 @@ class FenceHandler(Node):
 				self.period_notFix = (time.time() - self.last_not_gpsFix_stamp)
 				if (self.fix_type == 6) and (self.period_notFix > 5.0):
 					self.ekf_src = 1
-				else:
+				elif self.fix_type != 6:
 					self.last_not_gpsFix_stamp = time.time()
 
 		### Publish ekf_src

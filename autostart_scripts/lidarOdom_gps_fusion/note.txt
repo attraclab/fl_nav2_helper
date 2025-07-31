@@ -1,0 +1,1 @@
+with AP using only livox, fast_lio, mavlink_sender, fence_handler
