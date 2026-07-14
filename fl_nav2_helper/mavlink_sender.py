@@ -1,7 +1,7 @@
 import rclpy
 from rclpy.node import Node
 from nav_msgs.msg import Odometry
-from std_msgs.msg import Int8, Float64MultiArray
+from std_msgs.msg import Int8, Float64MultiArray, Float32MultiArray, Float32, Int16MultiArray
 from sensor_msgs.msg import NavSatFix, TimeReference, LaserScan
 from pymavlink import mavutil
 import time
@@ -207,6 +207,14 @@ class MAVLinkSender(Node):
 
 		self.set_origin = False
 
+		self.cart_mode = 1
+		self.vx = 0.0
+		self.vy = 0.0
+		self.vz = 0.0
+		self.hdg = 0.0
+		self.servo_left = 1515
+		self.servo_right = 1515
+
 		### Laserscan ###
 		self.front_min_scan_ang = -angle_shifted
 		self.front_max_scan_ang = angle_shifted
@@ -219,6 +227,7 @@ class MAVLinkSender(Node):
 		### Publish rate
 		self.last_pub_fix = time.time()
 		self.last_pub_gps = time.time()
+		self.last_pub_vel = time.time()
 
 		qos_policy = rclpy.qos.QoSProfile(reliability=rclpy.qos.ReliabilityPolicy.BEST_EFFORT, 
 											durability=rclpy.qos.DurabilityPolicy.VOLATILE, 
@@ -233,6 +242,10 @@ class MAVLinkSender(Node):
 		self.ekf_src_sub = self.create_subscription(Int8, "/ap/ekf_src", self.ekf_src_callback, 10)
 		self.gps_fix_pub =  self.create_publisher(Int8, "/ap/fix", 10)
 		self.robot_pos_pub = self.create_publisher(Float64MultiArray, "/ap/gps", 10)
+		self.global_vel_pub = self.create_publisher(Float32MultiArray, "/ap/global_vel", 10)
+		self.hdg_pub = self.create_publisher(Float32, "/ap/hdg", 10)
+		self.flight_mode_pub = self.create_publisher(Int8, "/ap/mode", 10)
+		self.servo_out_pub = self.create_publisher(Int16MultiArray, "/ap/pwm_out", 10)
 
 		self.get_logger().info("start mavlink_sender")
 
@@ -488,6 +501,42 @@ class MAVLinkSender(Node):
 			# self._print("{}".format(msg.to_dict()['chan8_raw']))
 			pass
 
+		elif (msg is not None) and (msg.get_type() == "GLOBAL_POSITION_INT"):
+			data_dict = msg.to_dict()
+			self.vx = data_dict['vx']/100.0
+			self.vy = data_dict['vy']/100.0
+			self.vz = data_dict['vz']/100.0
+			# self._print("vx {:.2f} vy: {:.2f} vz: {:.2f}".format(vx, vy, vz))
+			# self._print("{}".format(data_dict))
+
+
+		elif (msg is not None) and (msg.get_type() == "ATTITUDE"):
+			data_dict = msg.to_dict()
+			### raw yaw is in radians of -180 ~ 180 ranges
+			self.hdg = data_dict['yaw']
+			# self._print("yaw: {:.2f}".format(yaw))
+
+		elif (msg is not None) and (msg.get_type() == "HEARTBEAT"):
+			data_dict = msg.to_dict()
+			## 10 is rover, 6 is GCS
+			if data_dict["type"] == 10:
+				mode = mavutil.mode_string_v10(msg)
+				if mode == "MANUAL":
+					self.cart_mode = 1
+				elif mode == "HOLD":
+					self.cart_mode = 0
+				elif ((mode == "AUTO") or (mode == "GUIDED")):
+					self.cart_mode = 2
+				elif (mode == "LOITER"):
+					self.cart_mode = 3
+				# self._print("{}".format(data_dict))
+				# self._print("{}".format(mode))
+
+		elif (msg is not None) and (msg.get_type() == "SERVO_OUTPUT_RAW"):
+			data_dict = msg.to_dict()
+			self.servo_left = data_dict['servo1_raw']
+			self.servo_right = data_dict['servo3_raw']
+
 		self.prev_allowSendOdom = self.allowSendOdom
 
 		## Send DISTANCE_SENSOR ##
@@ -525,6 +574,25 @@ class MAVLinkSender(Node):
 			gps_pos_msg.data = [self.gps_lat, self.gps_lon]
 			self.robot_pos_pub.publish(gps_pos_msg)
 			self.last_pub_gps = time.time()
+
+		if (time.time() - self.last_pub_vel) >= 1/20.0:
+			vel_msg = Float32MultiArray()
+			vel_msg.data = [self.vx, self.vy, self.vz]
+			self.global_vel_pub.publish(vel_msg)
+
+			cart_mode_msg = Int8()
+			cart_mode_msg.data = self.cart_mode
+			self.flight_mode_pub.publish(cart_mode_msg)
+
+			hdg_msg = Float32()
+			hdg_msg.data = self.hdg
+			self.hdg_pub.publish(hdg_msg)
+
+			servo_out_msg = Int16MultiArray()
+			servo_out_msg.data = [self.servo_left, self.servo_right]
+			self.servo_out_pub.publish(servo_out_msg)
+
+			self.last_pub_vel = time.time()
 
 		
 

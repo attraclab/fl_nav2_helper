@@ -1,0 +1,43 @@
+# QoS overrides for `ros2 bag record` (Humble).
+#
+# WHY THIS IS REQUIRED, not optional:
+# FAST_LIO publishes /Odometry with rclcpp::SensorDataQoS() = BEST_EFFORT, and the
+# patched livox driver publishes /livox/* BEST_EFFORT too. `ros2 bag record` by
+# default subscribes RELIABLE, which is INCOMPATIBLE with a best-effort publisher —
+# so without these overrides the recorder connects but captures ZERO messages on
+# those topics. Each entry below forces a compatible subscription.
+#
+# /tf is reliable/volatile by default (no override needed). /tf_static is
+# transient_local (latched) — we set that so the one-shot static transform is
+# captured even though it was published before recording started.
+
+/Odometry:
+  reliability: best_effort
+  durability: volatile
+  history: keep_last
+  depth: 100
+
+/livox/imu:
+  reliability: best_effort
+  durability: volatile
+  history: keep_last
+  depth: 200
+
+/livox/lidar:
+  reliability: best_effort
+  durability: volatile
+  history: keep_last
+  depth: 10
+
+# FAST_LIO registered point cloud (rclcpp::SensorDataQoS() = best_effort).
+/cloud_registered:
+  reliability: best_effort
+  durability: volatile
+  history: keep_last
+  depth: 10
+
+/tf_static:
+  reliability: reliable
+  durability: transient_local
+  history: keep_last
+  depth: 100

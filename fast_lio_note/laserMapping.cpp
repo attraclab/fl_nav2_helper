@@ -748,6 +748,7 @@ void h_share_model(state_ikfom &s, esekfom::dyn_share_datastruct<double> &ekfom_
     {
         ekfom_data.valid = false;
         std::cerr << "No Effective Points!" << std::endl;
+        std::exit(EXIT_FAILURE);
         // ROS_WARN("No Effective Points! \n");
         return;
     }

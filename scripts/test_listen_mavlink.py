@@ -12,10 +12,14 @@ period = 0.0
 ap_lat = 0
 ap_lon = 0
 ch8 = 0
+vx = 0
+vy = 0
+vz = 0 
 
 while True:
     start_time = time.time()
 
+    
     msg = master.recv_msg()
 
     if (msg is not None) and (msg.get_type() == "GPS_RAW_INT"):
@@ -28,6 +32,14 @@ while True:
     elif (msg is not None) and (msg.get_type() == "RC_CHANNELS"):
         ch8 = msg.to_dict()['chan8_raw']
 
-    print("{} {} {} {}".format(period, ap_lat, ap_lon, ch8))
+    elif (msg is not None) and (msg.get_type() == "GLOBAL_POSITION_INT"):
+        vx = msg.to_dict()['vx']
+        vy = msg.to_dict()['vy']
+        vz = msg.to_dict()['vz']
+
+    print("{} {} {}".format(vx, vy, vz))
+
+    # print("{} {} {} {}".format(period, ap_lat, ap_lon, ch8))
 
     period = time.time() - start_time
+    time.sleep(0.1)

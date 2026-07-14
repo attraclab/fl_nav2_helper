@@ -37,7 +37,7 @@ def generate_launch_description():
                 'scan_time': 0.03333, #0.3333
                 'range_min': 0.5,
                 'range_max': 40.0,
-                'use_inf': True,
+                'use_inf': False,
                 'inf_epsilon': 1.0
             }],
             name='pointcloud_to_laserscan'
