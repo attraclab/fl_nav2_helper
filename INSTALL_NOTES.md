@@ -88,13 +88,86 @@ minor API mismatch appears on 22.04, the fastest fallback is
 `--packages-select pcl_conversions` (header-only, always compatible) since
 FAST_LIO's actual include is only `pcl_conversions/pcl_conversions.h`.
 
+## Post-install configuration
+
+Set these three things for your robot before running.
+
+### 1. Lidar + host IP in `MID360_config.json`
+
+Edit the MID360 network config so it matches your network — the **lidar's IP** and
+**this host computer's IP** on the lidar network:
+
+```
+~/livox_ws/src/livox_ros_driver2/config/MID360_config.json
+```
+```jsonc
+"host_net_info" : {
+    "cmd_data_ip"  : "192.168.1.5",   // <- THIS computer's IP (all *_ip fields)
+    ...
+},
+"lidar_configs" : [
+    { "ip" : "192.168.1.170", ... }   // <- the MID360's IP
+]
+```
+
+> The node reads the **installed** copy
+> (`~/livox_ws/install/livox_ros_driver2/share/livox_ros_driver2/config/MID360_config.json`),
+> which livox's `build.sh` *copies* (not symlinks). So edit `src` **and rebuild the
+> driver**, or edit the installed copy directly. A wrong/stale IP shows up as
+> `Can not get index`, `Storage point data failed`,
+> `found lidar not defined in the user-defined config` and **no `/livox/*` topics**
+> (see gotcha #1).
+
+### 2. `map_file_path` in `mid360.yaml`
+
+If you save/load a PCD map (`pcd_save_en: true`), point `map_file_path` at the
+correct absolute path:
+
+```
+~/fast_lio_ws/src/FAST_LIO/config/mid360.yaml
+```
+```yaml
+common:
+    map_file_path: "/home/ubuntu/pcl_gps_map/3dmap.pcd"   # <- your path
+```
+
+### 3. Disable RViz in `mapping.launch.py` (headless robots)
+
+On a headless robot you usually don't want FAST_LIO to also launch RViz. Edit
+
+```
+~/fast_lio_ws/src/FAST_LIO/launch/mapping.launch.py
+```
+
+and comment out the three RViz `add_action` lines at the bottom of
+`generate_launch_description()` so only the FAST_LIO node starts:
+
+```python
+    ld.add_action(declare_use_sim_time_cmd)
+    ld.add_action(declare_config_path_cmd)
+    ld.add_action(declare_config_file_cmd)
+    #ld.add_action(declare_rviz_cmd)
+    #ld.add_action(declare_rviz_config_path_cmd)
+
+    ld.add_action(fast_lio_node)
+    #ld.add_action(rviz_node)
+
+    return ld
+```
+
+Leave the `rviz_node` / `declare_rviz_*` definitions in place — just don't add
+them to the `LaunchDescription`. FAST_LIO is built `--symlink-install`, so editing
+the `src` launch file takes effect immediately (the installed copy is a symlink).
+
+> Note: the installer already auto-fixes a *broken* upstream variant of this file
+> (see gotcha #2). This step is the separate, intentional "don't start RViz"
+> change — do it if RViz still opens after install.
+
 ## After install
 
 ```sh
-# edit for your network first (set host IP + lidar IP) -- see gotcha #1 below:
-#   src:       ~/livox_ws/src/livox_ros_driver2/config/MID360_config.json
-#   installed: ~/livox_ws/install/livox_ros_driver2/share/livox_ros_driver2/config/MID360_config.json
-#   (the node reads the INSTALLED copy; edit src + rebuild, or edit the installed copy directly)
+# configure MID360_config.json / mid360.yaml / mapping.launch.py first
+# (see "Post-install configuration" above)
 
 source /opt/ros/humble/setup.bash
 source ~/livox_ws/install/setup.bash
